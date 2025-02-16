@@ -14,94 +14,37 @@ def load_excel_data():
     katalog_df = pd.read_excel("HIR-KATALOG.xlsx", engine="openpyxl")
     return mezuniyet_df, katalog_df
 
-def analyze_pdf_structure(pdf_path):
-    """PDF'nin yapısını analiz eder ve çıktı olarak ham metni döndürür."""
-    with pdfplumber.open(pdf_path) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text = page.extract_text()
-            table = page.extract_table()
-            print(f"=== Sayfa {i+1} Ham Metni ===")
-            print(text if text else "Metin bulunamadı")
-            print(f"=== Sayfa {i+1} Tablo Verisi ===")
-            print(table if table else "Tablo bulunamadı")
-            print("=====================================")
-
 def extract_table_from_pdf(pdf_path):
-    """PDF'den tablo verisini çıkarır."""
+    """PDF'den ders tablolarını çıkarır ve uygun formatta işler."""
     with pdfplumber.open(pdf_path) as pdf:
-        all_tables = []
+        all_courses = []
         for i, page in enumerate(pdf.pages):
             table = page.extract_table()
             if table:
                 for row in table:
-                    all_tables.append(row)
-    print("=== Tüm Tablolar Alındı ===")
-    print(all_tables)
-    return all_tables
-
-def extract_transcript_data(pdf_path):
-    """Transkript PDF dosyasından dersleri ve kredileri çıkarır."""
-    courses = []
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                print(f"=== Sayfa Ham Metni ===\n{text}")  # 🔍 Ham metni yazdır
-                text = text.replace("□", "İ")  # Türkçe karakter sorunu düzeltiliyor
-                lines = text.split("\n")
-                for line in lines:
-                    print(f"İşlenen Satır: {line}")  # 🔍 Satırları yazdır
-                    parts = line.split()
-                    if len(parts) > 3:
-                        try:
-                            ders_kodu = parts[0]
-                            ders_adi = " ".join(parts[1:-3])
-                            kredi_str = parts[-3].replace(",", ".")  # Virgüllü sayıları noktaya çevir
-                            kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
-                            statü = parts[-2]
-                            dil = "İng" if "(İng)" in ders_adi else "Tür"
-                            
-                            if len(parts) > 4 and parts[-1] != "-":
-                                continue
-                            
-                            courses.append((ders_kodu, ders_adi, kredi, statü, dil))
-                        except ValueError as e:
-                            print(f"Hata: {line} satırında kredi bilgisi okunamadı - {e}")
-    print("=== Tüm Dersler Alındı ===")
-    print(courses)
-    return courses
+                    if not row or len(row) < 5:
+                        continue
+                    ders_kodu = row[0].strip() if row[0] else ""
+                    ders_adi = row[1].strip() if row[1] else ""
+                    kredi_str = row[2].replace(",", ".") if row[2] else "0"
+                    kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
+                    statü = row[4].strip() if row[4] else ""
+                    dil = "İng" if "(İng)" in ders_adi else "Tür"
+                    yerine_1 = row[5] if len(row) > 5 and row[5] else ""
+                    yerine_2 = row[6] if len(row) > 6 and row[6] else ""
+                    if yerine_1 or yerine_2:
+                        continue
+                    all_courses.append((ders_kodu, ders_adi, kredi, statü, dil))
+    return all_courses
 
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
-    
-    print("=== DEBUG: Transcript Verisi ===")
-    print(transcript)
-
-    # Eğer transcript boşsa hata vermeden işlemi durdur
     if not transcript:
-        print("Hata: Transcript verisi boş!")
         return 0.0, 0, 0, 0, ["Transcript verisi okunamadı, PDF yapısını kontrol edin."]
-
-    # 🔍 Her satırın doğru formatta olup olmadığını kontrol edelim
-    print("=== DEBUG: Transcript Veri Yapısı ===")
-    for row in transcript:
-        print(type(row), row)
-
-    # 🛑 Eğer veri yanlış formatta ise işlemi durdur
-    if not all(isinstance(c, (list, tuple)) and len(c) >= 5 for c in transcript):
-        print("Hata: Transcript verisi yanlış formatta!")
-        return 0.0, 0, 0, 0, ["Transcript verisi yanlış formatta, PDF yapısını kontrol edin."]
-
-    # ✅ Güvenli kredi hesaplama
-    try:
-        toplam_ects = sum([float(c[2]) for c in transcript if isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
-        ingilizce_ects = sum([float(c[2]) for c in transcript if c[4] == "İng" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
-        mesleki_seçmeli_ects = sum([float(c[2]) for c in transcript if c[3] == "MS" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
-        seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
-    except Exception as e:
-        print(f"Hata: Kredi hesaplama sırasında hata oluştu - {e}")
-        return 0.0, 0, 0, 0, ["Kredi hesaplama sırasında hata oluştu, PDF formatını kontrol edin."]
-
+    toplam_ects = sum([c[2] for c in transcript])
+    ingilizce_ects = sum([c[2] for c in transcript if c[4] == "İng"])
+    mesleki_seçmeli_ects = sum([c[2] for c in transcript if c[3] == "MS"])
+    seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
     eksikler = []
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
@@ -111,7 +54,6 @@ def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
         eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {69.5 - mesleki_seçmeli_ects}")
     if seçmeli_sayısı == 0:
         eksikler.append("En az 1 seçmeli ders alınmalıdır.")
-
     return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, eksikler
 
 def main():
@@ -120,21 +62,13 @@ def main():
     
     if uploaded_file:
         mezuniyet_df, katalog_df = load_excel_data()
-        
-        analyze_pdf_structure(uploaded_file)
-        
         transcript = extract_table_from_pdf(uploaded_file)
-        if not transcript:
-            transcript = extract_transcript_data(uploaded_file)
-        
         toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, eksikler = analyze_graduation_status(transcript, mezuniyet_df, katalog_df)
-        
         st.write("### Mezuniyet Durumu")
         st.write(f"Toplam AKTS: {toplam_ects}")
         st.write(f"İngilizce AKTS: {ingilizce_ects}")
         st.write(f"Mesleki Seçmeli AKTS: {mesleki_seçmeli_ects}")
         st.write(f"Seçmeli Ders Sayısı: {seçmeli_sayısı}")
-        
         if eksikler:
             st.warning("Eksikler:")
             for eksik in eksikler:
