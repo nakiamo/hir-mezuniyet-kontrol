@@ -50,6 +50,7 @@ def extract_table_from_pdf(uploaded_file):
             for page in pdf.pages:
                 text = page.extract_text()
                 if text:
+                    st.write(f"📜 **Sayfa İçeriği:**\n{text}")  # PDF içeriğini ekrana yazdır
                     lines = text.split("\n")
                     for line in lines:
                         match = re.match(r"(\w{3}\d{3})\s+(.+?)\s+(\d+\.\d)\s+(\w+)\s+(\w+)\s*(\w+)?\s*(\w+)?", line)
@@ -69,7 +70,10 @@ def extract_table_from_pdf(uploaded_file):
 
 def analyze_graduation_status(transcript):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
+    
+    # Eğer transcript boşsa, hata döndürme, bunun yerine varsayılan bir değer ata
     if not transcript:
+        st.error("❌ Transcript verisi okunamadı! PDF formatını kontrol edin.")
         return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin."], {}
     
     basarili_dersler = [c for c in transcript if c[3] not in ["FF", "DZ"]]
@@ -101,6 +105,12 @@ def main():
     
     if uploaded_file is not None:
         transcript = extract_table_from_pdf(uploaded_file)
+        
+        # PDF'den veri çekilememişse hata mesajı ver
+        if not transcript:
+            st.error("❌ PDF okunamadı veya içindeki veriler işlenemedi. Lütfen dosyanın formatını kontrol edin.")
+            return
+        
         toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript)
         
         st.write("### 📊 Mezuniyet Durumu")
