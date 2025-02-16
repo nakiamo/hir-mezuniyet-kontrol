@@ -14,7 +14,7 @@ def extract_courses_from_pdf(uploaded_file):
                 text = page.extract_text()
                 if text:
                     # Dersleri yakalamak için regex
-                    ders_regex = re.findall(r"([A-ZÇĞİÖŞÜ]{2,4}\d{3})\s+\((İng|Tür)\)\s+(.+?)\s+(\d+\.\d)\s+([A-Z]{2})", text)
+                    ders_regex = re.findall(r"([A-ZÇĞİÖŞÜ]{2,4}\d{3})\s+\((İng|Tür)\)\s+(.+?)\s+(\d+\.\d)\s+([A-Z]{2})\s+([A-Z]+)", text)
 
                     for match in ders_regex:
                         ders_kodu = match[0].strip()
@@ -22,11 +22,12 @@ def extract_courses_from_pdf(uploaded_file):
                         ders_adi = match[2].strip()
                         kredi = float(match[3].replace(',', '.'))
                         notu = match[4].strip()
+                        statü = match[5].strip()
 
-                        # Başarısız dersleri FF, DZ notuna göre belirle
-                        statü = "Başarısız" if notu in ["FF", "DZ"] else "Başarılı"
+                        # FF, DZ başarısız derslerdir
+                        başarı_durumu = "Başarısız" if notu in ["FF", "DZ"] else "Başarılı"
 
-                        transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil))
+                        transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, başarı_durumu))
     
     except Exception as e:
         st.error(f"PDF okuma hatası: {e}")
@@ -39,10 +40,10 @@ def analyze_graduation_status(transcript):
         return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin!"]
 
     # 🔹 **Başarılı dersleri filtrele (FF veya DZ olmayanlar)**
-    basarili_dersler = [c for c in transcript if c[4] == "Başarılı"]
+    basarili_dersler = [c for c in transcript if c[6] == "Başarılı"]
 
     # 🔹 **Zorunlu dersleri hesapla**
-    toplam_zorunlu_ects = sum(c[2] for c in basarili_dersler if c[0].startswith(("ARY", "PSİ", "İKT", "RHİ", "SOS", "TAR", "TÜR", "İLT", "STV")))
+    toplam_zorunlu_ects = sum(c[2] for c in basarili_dersler if c[4] == "Z")
 
     # 🔹 **Toplam AKTS hesapla**
     toplam_ects = sum(c[2] for c in basarili_dersler)
@@ -51,13 +52,13 @@ def analyze_graduation_status(transcript):
     ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
 
     # 🔹 **Mesleki Seçmeli AKTS hesapla (MS olarak geçenler)**
-    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if "MS" in c[1] or c[0].startswith("RHİ"))
+    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "MS")
 
     # 🔹 **Seçmeli dersleri bul (S kategorisinde olanlar)**
-    secmeli_ects = sum(c[2] for c in basarili_dersler if "S" in c[1])
+    secmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "S")
 
     # 🔹 **Başarısız dersleri listele**
-    başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[4] == "Başarısız"]
+    başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[6] == "Başarısız"]
 
     # 🔹 **Eksik dersleri kontrol et**
     eksikler = []
