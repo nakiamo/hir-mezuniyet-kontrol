@@ -2,3 +2,6 @@ pandas
 pdfplumber
 streamlit
 openpyxl
+pdf2image
+pytesseract
+poppler-utils
