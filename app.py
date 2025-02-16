@@ -1,3 +1,26 @@
+import os
+import streamlit as st
+
+def check_files():
+    """Streamlit çalışma ortamında dosyaların olup olmadığını kontrol eder"""
+    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
+    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
+    
+    st.write("📂 **Streamlit Çalışma Ortamındaki Dosyalar:**")
+    try:
+        files_in_dir = os.listdir("/mnt/data/")
+        for file in files_in_dir:
+            st.write(f"📄 {file}")
+    except FileNotFoundError:
+        st.write("🚨 `/mnt/data/` klasörü bulunamadı!")
+
+    st.write("🔍 **Dosya Kontrolü:**")
+    st.write(f"📂 Mezuniyet Dosyası Var mı? → {os.path.exists(mezuniyet_path)}")
+    st.write(f"📂 Katalog Dosyası Var mı? → {os.path.exists(katalog_path)}")
+
+check_files()
+
+
 import pandas as pd
 import pdfplumber
 import streamlit as st
