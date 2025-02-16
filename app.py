@@ -30,7 +30,7 @@ def extract_table_from_pdf(uploaded_file):
                 if text:
                     lines = text.split("\n")
                     for line in lines:
-                        match = re.match(r"(\w{3}\d{3})\s+(.+?)\s+(\d+\.\d)\s+(\w+)\s+(\w+)\s*(\w+)?\s*(\w+)?", line)
+                        match = re.match(r"(\w{3}\d{3})\s+(.+?)\s+(\d+\.\d)\s+([A-Z]{2,})\s+(\w+)\s*(\w+)?\s*(\w+)?", line)
                         if match:
                             ders_kodu = match.group(1).strip()
                             ders_adi = match.group(2).strip()
@@ -42,8 +42,17 @@ def extract_table_from_pdf(uploaded_file):
                             yerine_2 = match.group(7) if match.group(7) else ""
                             
                             transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
+
+        if not transcript_data:
+            st.error("PDF'den ders bilgileri okunamadı. PDF formatını kontrol edin!")
+
     except Exception as e:
         st.error(f"PDF okuma sırasında hata oluştu: {e}")
+    
+    st.write("### Debug: Çıkarılan Dersler")
+    for ders in transcript_data:
+        st.write(f"{ders[0]} - {ders[1]} - {ders[2]} AKTS - {ders[3]} - {ders[4]} - {ders[5]}")
+
     return transcript_data
 
 def find_alternative_courses(failed_courses, katalog_df):
