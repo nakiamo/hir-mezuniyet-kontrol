@@ -22,7 +22,7 @@ def analyze_pdf_structure(pdf_path):
             table = page.extract_table()
             print(f"=== Sayfa {i+1} Ham Metni ===")
             print(text if text else "Metin bulunamadı")
-            print("=== Sayfa {i+1} Tablo Verisi ===")
+            print(f"=== Sayfa {i+1} Tablo Verisi ===")
             print(table if table else "Tablo bulunamadı")
             print("=====================================")
 
@@ -35,6 +35,8 @@ def extract_table_from_pdf(pdf_path):
             if table:
                 for row in table:
                     all_tables.append(row)
+    print("=== Tüm Tablolar Alındı ===")
+    print(all_tables)
     return all_tables
 
 def extract_transcript_data(pdf_path):
@@ -44,9 +46,11 @@ def extract_transcript_data(pdf_path):
         for page in pdf.pages:
             text = page.extract_text()
             if text:
+                print(f"=== Sayfa Ham Metni ===\n{text}")  # 🔍 Ham metni yazdır
                 text = text.replace("□", "İ")  # Türkçe karakter sorunu düzeltiliyor
                 lines = text.split("\n")
                 for line in lines:
+                    print(f"İşlenen Satır: {line}")  # 🔍 Satırları yazdır
                     parts = line.split()
                     if len(parts) > 3:
                         try:
@@ -57,37 +61,30 @@ def extract_transcript_data(pdf_path):
                             statü = parts[-2]
                             dil = "İng" if "(İng)" in ders_adi else "Tür"
                             
-                            # Eğer "Yerine" sütunu doluysa bu dersi dahil etme
                             if len(parts) > 4 and parts[-1] != "-":
                                 continue
                             
                             courses.append((ders_kodu, ders_adi, kredi, statü, dil))
                         except ValueError as e:
                             print(f"Hata: {line} satırında kredi bilgisi okunamadı - {e}")
+    print("=== Tüm Dersler Alındı ===")
+    print(courses)
     return courses
 
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
-
-    # 🔍 Debugging: Transcript çıktısını inceleyelim
     print("=== DEBUG: Transcript Verisi ===")
     print(transcript)
-
-    # Eğer transcript boşsa, hata vermeden işlemi durduralım
+    
     if not transcript:
         print("Hata: Transcript verisi boş!")
         return 0.0, 0, 0, 0, ["Transcript verisi okunamadı, PDF yapısını kontrol edin."]
-
-    # 🔍 Her satırın doğru formatta olup olmadığını kontrol edelim
-    if not all(isinstance(c, (list, tuple)) and len(c) >= 5 for c in transcript):
-        print("Hata: Transcript verisi yanlış formatta!")
-        return 0.0, 0, 0, 0, ["Transcript verisi yanlış formatta, PDF yapısını kontrol edin."]
-
-    toplam_ects = sum([float(c[2]) for c in transcript if isinstance(c[2], (int, float))])
-    ingilizce_ects = sum([float(c[2]) for c in transcript if c[4] == "İng"])
-    mesleki_seçmeli_ects = sum([float(c[2]) for c in transcript if c[3] == "MS"])
+    
+    toplam_ects = sum([c[2] for c in transcript])
+    ingilizce_ects = sum([c[2] for c in transcript if c[4] == "İng"])
+    mesleki_seçmeli_ects = sum([c[2] for c in transcript if c[3] == "MS"])
     seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
-
+    
     eksikler = []
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
@@ -97,9 +94,8 @@ def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
         eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {69.5 - mesleki_seçmeli_ects}")
     if seçmeli_sayısı == 0:
         eksikler.append("En az 1 seçmeli ders alınmalıdır.")
-
+    
     return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, eksikler
-
 
 def main():
     st.title("HIR Mezuniyet Kontrol Sistemi")
@@ -108,10 +104,8 @@ def main():
     if uploaded_file:
         mezuniyet_df, katalog_df = load_excel_data()
         
-        # 1️⃣ PDF yapısını analiz et ve debug çıktısı al
         analyze_pdf_structure(uploaded_file)
         
-        # 2️⃣ Tablolar varsa onları oku, yoksa metin tabanlı analiz yap
         transcript = extract_table_from_pdf(uploaded_file)
         if not transcript:
             transcript = extract_transcript_data(uploaded_file)
