@@ -38,19 +38,28 @@ def analyze_graduation_status(transcript):
     if not transcript:
         return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin!"]
 
-    # Başarılı dersleri filtrele (FF veya DZ olmayanlar)
+    # 🔹 **Başarılı dersleri filtrele (FF veya DZ olmayanlar)**
     basarili_dersler = [c for c in transcript if c[4] == "Başarılı"]
 
-    # Toplam AKTS hesapla
-    toplam_ects = sum(c[2] for c in basarili_dersler)
-    ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
-    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if c[0].startswith("RHİ"))  # RHİ kodları mesleki seçmeli
-    secmeli_sayisi = sum(1 for c in basarili_dersler if c[0].startswith("KÜL"))  # Seçmeli dersler KÜL ile başlıyor olabilir
+    # 🔹 **Zorunlu dersleri hesapla**
+    toplam_zorunlu_ects = sum(c[2] for c in basarili_dersler if c[0].startswith(("ARY", "PSİ", "İKT", "RHİ", "SOS", "TAR", "TÜR", "İLT", "STV")))
 
-    # Başarısız dersleri listele
+    # 🔹 **Toplam AKTS hesapla**
+    toplam_ects = sum(c[2] for c in basarili_dersler)
+
+    # 🔹 **İngilizce derslerin AKTS'sini hesapla**
+    ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
+
+    # 🔹 **Mesleki Seçmeli AKTS hesapla (MS olarak geçenler)**
+    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if "MS" in c[1] or c[0].startswith("RHİ"))
+
+    # 🔹 **Seçmeli dersleri bul (S kategorisinde olanlar)**
+    secmeli_ects = sum(c[2] for c in basarili_dersler if "S" in c[1])
+
+    # 🔹 **Başarısız dersleri listele**
     başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[4] == "Başarısız"]
 
-    # Eksik dersleri kontrol et
+    # 🔹 **Eksik dersleri kontrol et**
     eksikler = []
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
@@ -58,10 +67,10 @@ def analyze_graduation_status(transcript):
         eksikler.append(f"Eksik İngilizce AKTS: {72 - ingilizce_ects}")
     if mesleki_seçmeli_ects < 56:
         eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {56 - mesleki_seçmeli_ects}")
-    if secmeli_sayisi == 0:
-        eksikler.append("En az 1 seçmeli ders alınmalıdır.")
+    if secmeli_ects < 7:
+        eksikler.append(f"Eksik Seçmeli AKTS: {7 - secmeli_ects}")
 
-    return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_sayisi, başarısız_dersler, eksikler
+    return toplam_zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_ects, başarısız_dersler, eksikler
 
 # 📌 Streamlit uygulaması
 def main():
@@ -70,13 +79,14 @@ def main():
     
     if uploaded_file:
         transcript = extract_courses_from_pdf(uploaded_file)
-        toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_sayisi, başarısız_dersler, eksikler = analyze_graduation_status(transcript)
+        toplam_zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript)
         
-        st.write("### Mezuniyet Durumu")
+        st.write("### 📊 Mezuniyet Durumu")
+        st.write(f"**Toplam Zorunlu Ders AKTS:** {toplam_zorunlu_ects}")
         st.write(f"**Toplam AKTS:** {toplam_ects}")
         st.write(f"**İngilizce AKTS:** {ingilizce_ects}")
         st.write(f"**Mesleki Seçmeli AKTS:** {mesleki_seçmeli_ects}")
-        st.write(f"**Seçmeli Ders Sayısı:** {secmeli_sayisi}")
+        st.write(f"**Seçmeli Ders AKTS:** {secmeli_ects}")
         
         if eksikler:
             st.warning("Eksikler:")
