@@ -26,17 +26,21 @@ def extract_transcript_data(pdf_path):
                 for line in lines:
                     parts = line.split()
                     if len(parts) > 3:
-                        ders_kodu = parts[0]
-                        ders_adi = " ".join(parts[1:-3])
-                        kredi = float(parts[-3])
-                        statü = parts[-2]
-                        dil = "İng" if "(İng)" in ders_adi else "Tür"
-                        
-                        # Eğer "Yerine" sütunu doluysa bu dersi dahil etme
-                        if len(parts) > 4 and parts[-1] != "-":
-                            continue
-                        
-                        courses.append((ders_kodu, ders_adi, kredi, statü, dil))
+                        try:
+                            ders_kodu = parts[0]
+                            ders_adi = " ".join(parts[1:-3])
+                            kredi_str = parts[-3].replace(",", ".")  # Virgüllü sayıları noktaya çevir
+                            kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
+                            statü = parts[-2]
+                            dil = "İng" if "(İng)" in ders_adi else "Tür"
+                            
+                            # Eğer "Yerine" sütunu doluysa bu dersi dahil etme
+                            if len(parts) > 4 and parts[-1] != "-":
+                                continue
+                            
+                            courses.append((ders_kodu, ders_adi, kredi, statü, dil))
+                        except ValueError as e:
+                            print(f"Hata: {line} satırında kredi bilgisi okunamadı - {e}")
     return courses
 
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
