@@ -3,10 +3,11 @@ import pdfplumber
 import streamlit as st
 
 def load_excel_data():
-    """Mezuniyet ve katalog dosyalarını yükler"""
-    mezuniyet_df = pd.read_excel("HIR-MEZUNIYET.xls")
-    katalog_df = pd.read_excel("HIR-KATALOG.xls")
+    """Load graduation and catalog data"""
+    mezuniyet_df = pd.read_excel("HIR-MEZUNIYET.xlsx", engine="openpyxl")
+    katalog_df = pd.read_excel("HIR-KATALOG.xlsx", engine="openpyxl")
     return mezuniyet_df, katalog_df
+
 
 def extract_transcript_data(pdf_path):
     """Transkript PDF dosyasından dersleri ve kredileri çıkarır"""
