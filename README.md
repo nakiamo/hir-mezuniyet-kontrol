@@ -15,6 +15,7 @@ Bu uygulama, Anadolu Üniversitesi Halkla İlişkiler ve Reklamcılık bölümü
 2️⃣ **Transkript PDF'ni yükle**  
 3️⃣ **Mezuniyet durumunu anında gör!**  
 
+
 ## 🛠️ Kurulum (Geliştiriciler için)  
 Bu uygulamayı yerel olarak çalıştırmak için:  
 ```bash
@@ -23,12 +24,3 @@ cd hir-mezuniyet-kontrol
 pip install -r requirements.txt
 streamlit run app.py
 
-📝 Mezuniyet Şartları
-
-Toplam AKTS: Minimum 240
-İngilizce AKTS: Minimum 72
-Mesleki Seçmeli AKTS: Minimum 69,5
-En az 1 seçmeli ders alınmalı
-📧 İletişim
-
-Bu proje hakkında geri bildirim vermek veya hata bildirmek için GitHub Issues bölümünü kullanabilirsiniz. 🎉
