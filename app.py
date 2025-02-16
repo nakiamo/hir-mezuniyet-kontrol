@@ -45,7 +45,7 @@ def extract_table_from_pdf(uploaded_file):
                         except ValueError:
                             continue
                         
-                        if not ders_kodu or kredi == 0:
+                        if not ders_kodu or kredi == 0 or not notu:
                             continue
                         
                         transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
@@ -89,7 +89,7 @@ def analyze_graduation_status(transcript, katalog_df):
 
 def main():
     st.title("HIR Mezuniyet Kontrol Sistemi")
-    uploaded_file = st.file_uploader("Transkript PDF yükleyin", type=["pdf"])
+    uploaded_file = st.file_uploader("Karteks PDF yükleyin", type=["pdf"])
     
     mezuniyet_df, katalog_df = load_excel_data()
     
