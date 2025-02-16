@@ -27,12 +27,19 @@ def extract_table_from_pdf(pdf_path):
                     ders_kodu = row[0].strip() if row[0] else ""
                     ders_adi = row[1].strip() if row[1] else ""
                     kredi_str = row[2].replace(",", ".") if row[2] else "0"
-                    kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
+                    try:
+                        kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
+                    except ValueError:
+                        print(f"Hata: Kredi dönüştürme başarısız - {row}")
+                        continue
                     statü = row[4].strip() if row[4] else ""
                     dil = "İng" if "(İng)" in ders_adi else "Tür"
                     yerine_1 = row[5] if len(row) > 5 and row[5] else ""
                     yerine_2 = row[6] if len(row) > 6 and row[6] else ""
                     if yerine_1 or yerine_2:
+                        continue
+                    if not ders_kodu or not kredi or kredi == 0:
+                        print(f"Uyarı: Yanlış formatta satır atlandı - {row}")
                         continue
                     all_courses.append((ders_kodu, ders_adi, kredi, statü, dil))
     return all_courses
@@ -40,11 +47,16 @@ def extract_table_from_pdf(pdf_path):
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
     if not transcript:
+        print("Hata: Transcript verisi boş!")
         return 0.0, 0, 0, 0, ["Transcript verisi okunamadı, PDF yapısını kontrol edin."]
-    toplam_ects = sum([c[2] for c in transcript])
-    ingilizce_ects = sum([c[2] for c in transcript if c[4] == "İng"])
-    mesleki_seçmeli_ects = sum([c[2] for c in transcript if c[3] == "MS"])
-    seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
+    try:
+        toplam_ects = sum([float(c[2]) for c in transcript if isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        ingilizce_ects = sum([float(c[2]) for c in transcript if c[4] == "İng" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        mesleki_seçmeli_ects = sum([float(c[2]) for c in transcript if c[3] == "MS" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
+    except Exception as e:
+        print(f"Hata: Kredi hesaplama sırasında hata oluştu - {e}")
+        return 0.0, 0, 0, 0, ["Kredi hesaplama sırasında hata oluştu, PDF formatını kontrol edin."]
     eksikler = []
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
