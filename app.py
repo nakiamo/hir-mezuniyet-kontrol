@@ -4,89 +4,87 @@ import streamlit as st
 import os
 import re
 
-# 📌 PDF'den metni ayıkla ve dersleri çek
-def extract_courses_from_pdf(uploaded_file):
-    transcript_data = []
+def load_excel_data():
+    """Mezuniyet ve katalog dosyalarını yükler"""
+    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
+    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
     
+    if not os.path.exists(mezuniyet_path) or not os.path.exists(katalog_path):
+        st.error("Gerekli dosyalar eksik! Lütfen HIR-MEZUNIYET.xlsx ve HIR-KATALOG.xlsx dosyalarını yükleyin.")
+        return None, None
+    
+    mezuniyet_df = pd.read_excel(mezuniyet_path, engine="openpyxl")
+    katalog_df = pd.read_excel(katalog_path, engine="openpyxl")
+    return mezuniyet_df, katalog_df
+
+def extract_table_from_pdf(uploaded_file):
+    """PDF'den ders tablolarını çıkarır ve uygun formatta işler."""
+    transcript_data = []
     try:
         with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
                 text = page.extract_text()
                 if text:
-                    # Dersleri yakalamak için regex
-                    ders_regex = re.findall(r"([A-ZÇĞİÖŞÜ]{2,4}\d{3})\s+\((İng|Tür)\)\s+(.+?)\s+(\d+\.\d)\s+([A-Z]{2})\s+([A-Z]+)", text)
-
-                    for match in ders_regex:
-                        ders_kodu = match[0].strip()
-                        dil = match[1].strip()
-                        ders_adi = match[2].strip()
-                        kredi = float(match[3].replace(',', '.'))
-                        notu = match[4].strip()
-                        statü = match[5].strip()
-
-                        # FF, DZ başarısız derslerdir
-                        başarı_durumu = "Başarısız" if notu in ["FF", "DZ"] else "Başarılı"
-
-                        transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, başarı_durumu))
-    
+                    lines = text.split("\n")
+                    for line in lines:
+                        match = re.match(r"(\w{3}\d{3})\s+(.+?)\s+(\d+\.\d)\s+(\w+)\s+(\w+)\s*(\w+)?\s*(\w+)?", line)
+                        if match:
+                            ders_kodu = match.group(1).strip()
+                            ders_adi = match.group(2).strip()
+                            kredi = float(match.group(3))
+                            notu = match.group(4).strip()
+                            statü = match.group(5).strip()
+                            dil = "İng" if "(İng)" in ders_adi else "Tür"
+                            yerine_1 = match.group(6) if match.group(6) else ""
+                            yerine_2 = match.group(7) if match.group(7) else ""
+                            transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
     except Exception as e:
-        st.error(f"PDF okuma hatası: {e}")
-
+        st.error(f"PDF okuma sırasında hata oluştu: {e}")
     return transcript_data
 
-# 📌 Mezuniyet kriterlerini kontrol et
-def analyze_graduation_status(transcript):
+def analyze_graduation_status(transcript, mezuniyet_df):
+    """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
     if not transcript:
-        return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin!"]
-
-    # 🔹 **Başarılı dersleri filtrele (FF veya DZ olmayanlar)**
-    basarili_dersler = [c for c in transcript if c[6] == "Başarılı"]
-
-    # 🔹 **Zorunlu dersleri hesapla**
-    toplam_zorunlu_ects = sum(c[2] for c in basarili_dersler if c[4] == "Z")
-
-    # 🔹 **Toplam AKTS hesapla**
+        return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin."], {}
+    
+    basarili_dersler = [c for c in transcript if c[3] not in ["FF", "DZ"]]
     toplam_ects = sum(c[2] for c in basarili_dersler)
-
-    # 🔹 **İngilizce derslerin AKTS'sini hesapla**
+    
+    zorunlu_ders_kodlari = mezuniyet_df['Ders Kodu'].tolist()
+    zorunlu_ects = sum(c[2] for c in basarili_dersler if c[0] in zorunlu_ders_kodlari)
     ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
-
-    # 🔹 **Mesleki Seçmeli AKTS hesapla (MS olarak geçenler)**
-    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "MS")
-
-    # 🔹 **Seçmeli dersleri bul (S kategorisinde olanlar)**
     secmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "S")
-
-    # 🔹 **Başarısız dersleri listele**
-    başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[6] == "Başarısız"]
-
-    # 🔹 **Eksik dersleri kontrol et**
+    mesleki_secmeli_ects = sum(c[2] for c in basarili_dersler if c[4] not in ["Z", "S"])
+    
+    başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[3] in ["FF", "DZ"]]
     eksikler = []
+    
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
     if ingilizce_ects < 72:
         eksikler.append(f"Eksik İngilizce AKTS: {72 - ingilizce_ects}")
-    if mesleki_seçmeli_ects < 56:
-        eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {56 - mesleki_seçmeli_ects}")
+    if mesleki_secmeli_ects < 69.5:
+        eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {69.5 - mesleki_secmeli_ects}")
     if secmeli_ects < 7:
         eksikler.append(f"Eksik Seçmeli AKTS: {7 - secmeli_ects}")
+    
+    return zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler
 
-    return toplam_zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_ects, başarısız_dersler, eksikler
-
-# 📌 Streamlit uygulaması
 def main():
     st.title("HIR Mezuniyet Kontrol Sistemi")
     uploaded_file = st.file_uploader("Karteks PDF yükleyin", type=["pdf"])
     
-    if uploaded_file:
-        transcript = extract_courses_from_pdf(uploaded_file)
-        toplam_zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript)
+    mezuniyet_df, katalog_df = load_excel_data()
+    
+    if uploaded_file and mezuniyet_df is not None:
+        transcript = extract_table_from_pdf(uploaded_file)
+        zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript, mezuniyet_df)
         
         st.write("### 📊 Mezuniyet Durumu")
-        st.write(f"**Toplam Zorunlu Ders AKTS:** {toplam_zorunlu_ects}")
+        st.write(f"**Toplam Zorunlu Ders AKTS:** {zorunlu_ects}")
         st.write(f"**Toplam AKTS:** {toplam_ects}")
         st.write(f"**İngilizce AKTS:** {ingilizce_ects}")
-        st.write(f"**Mesleki Seçmeli AKTS:** {mesleki_seçmeli_ects}")
+        st.write(f"**Mesleki Seçmeli AKTS:** {mesleki_secmeli_ects}")
         st.write(f"**Seçmeli Ders AKTS:** {secmeli_ects}")
         
         if eksikler:
