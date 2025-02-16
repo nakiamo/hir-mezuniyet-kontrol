@@ -101,3 +101,16 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import os
+import streamlit as st
+
+def check_files():
+    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
+    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
+
+    st.write("🔍 Dosya Kontrolü:")
+    st.write(f"📂 Mezuniyet Dosyası Var mı? -> {os.path.exists(mezuniyet_path)}")
+    st.write(f"📂 Katalog Dosyası Var mı? -> {os.path.exists(katalog_path)}")
+
+check_files()  # Bu satırı ekleyerek fonksiyonu çalıştır
