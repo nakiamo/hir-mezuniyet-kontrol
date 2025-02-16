@@ -2,6 +2,7 @@ import pandas as pd
 import pdfplumber
 import streamlit as st
 import os
+import re
 
 def load_excel_data():
     """Mezuniyet ve katalog dosyalarını yükler"""
@@ -25,30 +26,22 @@ def extract_table_from_pdf(uploaded_file):
     try:
         with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
-                table = page.extract_table()
-                if table:
-                    for row in table:
-                        if not row or len(row) < 5:
-                            continue
-                        
-                        ders_kodu = row[0].strip() if row[0] else ""
-                        ders_adi = row[1].strip() if row[1] else ""
-                        kredi = row[2].replace(",", ".") if row[2] else "0"
-                        notu = row[3].strip() if row[3] else ""
-                        statü = row[4].strip() if row[4] else ""
-                        dil = "İng" if "(İng)" in ders_adi else "Tür"
-                        yerine_1 = row[5] if len(row) > 5 and row[5] else ""
-                        yerine_2 = row[6] if len(row) > 6 and row[6] else ""
-                        
-                        try:
-                            kredi = float(kredi) if kredi.replace(".", "").isdigit() else 0.0
-                        except ValueError:
-                            continue
-                        
-                        if not ders_kodu or kredi == 0 or not notu:
-                            continue
-                        
-                        transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
+                text = page.extract_text()
+                if text:
+                    lines = text.split("\n")
+                    for line in lines:
+                        match = re.match(r"(\w{3}\d{3})\s+(.+?)\s+(\d+\.\d)\s+(\w+)\s+(\w+)\s*(\w+)?\s*(\w+)?", line)
+                        if match:
+                            ders_kodu = match.group(1).strip()
+                            ders_adi = match.group(2).strip()
+                            kredi = float(match.group(3))
+                            notu = match.group(4).strip()
+                            statü = match.group(5).strip()
+                            dil = "İng" if "(İng)" in ders_adi else "Tür"
+                            yerine_1 = match.group(6) if match.group(6) else ""
+                            yerine_2 = match.group(7) if match.group(7) else ""
+                            
+                            transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
     except Exception as e:
         st.error(f"PDF okuma sırasında hata oluştu: {e}")
     return transcript_data
