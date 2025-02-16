@@ -60,10 +60,14 @@ def analyze_graduation_status(transcript, katalog_df):
     if not transcript:
         return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin."], {}
     
-    toplam_ects = sum(c[2] for c in transcript)
-    ingilizce_ects = sum(c[2] for c in transcript if c[5] == "İng")
-    mesleki_seçmeli_ects = sum(c[2] for c in transcript if c[4] == "MS")
-    seçmeli_sayısı = sum(1 for c in transcript if c[4] == "S")
+    # Sadece başarılı dersleri alalım
+    basarili_dersler = [c for c in transcript if c[3] not in ["FF", "DZ"]]
+    
+    toplam_ects = sum(c[2] for c in basarili_dersler)
+    ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
+    mesleki_seçmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "MS")
+    secmeli_sayisi = sum(1 for c in basarili_dersler if c[4] == "S")
+    
     başarısız_dersler = [(c[0], c[1], c[3]) for c in transcript if c[3] in ["FF", "DZ"]]
     
     eksikler = []
@@ -73,12 +77,12 @@ def analyze_graduation_status(transcript, katalog_df):
         eksikler.append(f"Eksik İngilizce AKTS: {72 - ingilizce_ects}")
     if mesleki_seçmeli_ects < 69.5:
         eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {69.5 - mesleki_seçmeli_ects}")
-    if seçmeli_sayısı == 0:
+    if secmeli_sayisi == 0:
         eksikler.append("En az 1 seçmeli ders alınmalıdır.")
     
     alternatifler = find_alternative_courses(başarısız_dersler, katalog_df)
     
-    return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, başarısız_dersler, eksikler, alternatifler
+    return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_sayisi, başarısız_dersler, eksikler, alternatifler
 
 def main():
     st.title("HIR Mezuniyet Kontrol Sistemi")
@@ -88,13 +92,13 @@ def main():
     
     if uploaded_file and katalog_df is not None:
         transcript = extract_table_from_pdf(uploaded_file)
-        toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, başarısız_dersler, eksikler, alternatifler = analyze_graduation_status(transcript, katalog_df)
+        toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, secmeli_sayisi, başarısız_dersler, eksikler, alternatifler = analyze_graduation_status(transcript, katalog_df)
         
         st.write("### Mezuniyet Durumu")
         st.write(f"Toplam AKTS: {toplam_ects}")
         st.write(f"İngilizce AKTS: {ingilizce_ects}")
         st.write(f"Mesleki Seçmeli AKTS: {mesleki_seçmeli_ects}")
-        st.write(f"Seçmeli Ders Sayısı: {seçmeli_sayısı}")
+        st.write(f"Seçmeli Ders Sayısı: {secmeli_sayisi}")
         
         if eksikler:
             st.warning("Eksikler:")
