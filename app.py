@@ -14,44 +14,60 @@ def load_excel_data():
     katalog_df = pd.read_excel("HIR-KATALOG.xlsx", engine="openpyxl")
     return mezuniyet_df, katalog_df
 
-def convert_pdf_to_txt(pdf_path, output_txt="transcript_cleaned.txt"):
-    """PDF'yi temizlenmiş metin dosyasına dönüştür"""
+def analyze_pdf_structure(pdf_path):
+    """PDF'nin yapısını analiz eder ve çıktı olarak ham metni döndürür."""
     with pdfplumber.open(pdf_path) as pdf:
-        with open(output_txt, "w", encoding="utf-8") as txt_file:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    text = text.replace("□", "İ")  # Türkçe karakter sorunu düzeltiliyor
-                    txt_file.write(text + "\n")
-    return output_txt
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text()
+            table = page.extract_table()
+            print(f"=== Sayfa {i+1} Ham Metni ===")
+            print(text if text else "Metin bulunamadı")
+            print("=== Sayfa {i+1} Tablo Verisi ===")
+            print(table if table else "Tablo bulunamadı")
+            print("=====================================")
 
-def extract_transcript_from_txt(txt_path):
-    """Temizlenmiş metin dosyasından ders bilgilerini çıkarır"""
+def extract_table_from_pdf(pdf_path):
+    """PDF'den tablo verisini çıkarır."""
+    with pdfplumber.open(pdf_path) as pdf:
+        all_tables = []
+        for i, page in enumerate(pdf.pages):
+            table = page.extract_table()
+            if table:
+                for row in table:
+                    all_tables.append(row)
+    return all_tables
+
+def extract_transcript_data(pdf_path):
+    """Transkript PDF dosyasından dersleri ve kredileri çıkarır."""
     courses = []
-    with open(txt_path, "r", encoding="utf-8") as txt_file:
-        lines = txt_file.readlines()
-        for line in lines:
-            parts = line.split()
-            if len(parts) > 3:
-                try:
-                    ders_kodu = parts[0]
-                    ders_adi = " ".join(parts[1:-3])
-                    kredi_str = parts[-3].replace(",", ".")  # Virgüllü sayıları noktaya çevir
-                    kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
-                    statü = parts[-2]
-                    dil = "İng" if "(İng)" in ders_adi else "Tür"
-                    
-                    # Eğer "Yerine" sütunu doluysa bu dersi dahil etme
-                    if len(parts) > 4 and parts[-1] != "-":
-                        continue
-                    
-                    courses.append((ders_kodu, ders_adi, kredi, statü, dil))
-                except ValueError as e:
-                    print(f"Hata: {line} satırında kredi bilgisi okunamadı - {e}")
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                text = text.replace("□", "İ")  # Türkçe karakter sorunu düzeltiliyor
+                lines = text.split("\n")
+                for line in lines:
+                    parts = line.split()
+                    if len(parts) > 3:
+                        try:
+                            ders_kodu = parts[0]
+                            ders_adi = " ".join(parts[1:-3])
+                            kredi_str = parts[-3].replace(",", ".")  # Virgüllü sayıları noktaya çevir
+                            kredi = float(kredi_str) if kredi_str.replace(".", "").isdigit() else 0.0
+                            statü = parts[-2]
+                            dil = "İng" if "(İng)" in ders_adi else "Tür"
+                            
+                            # Eğer "Yerine" sütunu doluysa bu dersi dahil etme
+                            if len(parts) > 4 and parts[-1] != "-":
+                                continue
+                            
+                            courses.append((ders_kodu, ders_adi, kredi, statü, dil))
+                        except ValueError as e:
+                            print(f"Hata: {line} satırında kredi bilgisi okunamadı - {e}")
     return courses
 
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
-    """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar"""
+    """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
     toplam_ects = sum([c[2] for c in transcript])
     ingilizce_ects = sum([c[2] for c in transcript if c[4] == "İng"])
     mesleki_seçmeli_ects = sum([c[2] for c in transcript if c[3] == "MS"])
@@ -76,11 +92,13 @@ def main():
     if uploaded_file:
         mezuniyet_df, katalog_df = load_excel_data()
         
-        # 1️⃣ PDF'yi TXT formatına dönüştür
-        cleaned_txt = convert_pdf_to_txt(uploaded_file)
+        # 1️⃣ PDF yapısını analiz et ve debug çıktısı al
+        analyze_pdf_structure(uploaded_file)
         
-        # 2️⃣ TXT'den transkript verilerini oku
-        transcript = extract_transcript_from_txt(cleaned_txt)
+        # 2️⃣ Tablolar varsa onları oku, yoksa metin tabanlı analiz yap
+        transcript = extract_table_from_pdf(uploaded_file)
+        if not transcript:
+            transcript = extract_transcript_data(uploaded_file)
         
         toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, eksikler = analyze_graduation_status(transcript, mezuniyet_df, katalog_df)
         
