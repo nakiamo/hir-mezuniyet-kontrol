@@ -73,18 +73,35 @@ def extract_transcript_data(pdf_path):
 
 def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
+    
     print("=== DEBUG: Transcript Verisi ===")
     print(transcript)
-    
+
+    # Eğer transcript boşsa hata vermeden işlemi durdur
     if not transcript:
         print("Hata: Transcript verisi boş!")
         return 0.0, 0, 0, 0, ["Transcript verisi okunamadı, PDF yapısını kontrol edin."]
-    
-    toplam_ects = sum([c[2] for c in transcript])
-    ingilizce_ects = sum([c[2] for c in transcript if c[4] == "İng"])
-    mesleki_seçmeli_ects = sum([c[2] for c in transcript if c[3] == "MS"])
-    seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
-    
+
+    # 🔍 Her satırın doğru formatta olup olmadığını kontrol edelim
+    print("=== DEBUG: Transcript Veri Yapısı ===")
+    for row in transcript:
+        print(type(row), row)
+
+    # 🛑 Eğer veri yanlış formatta ise işlemi durdur
+    if not all(isinstance(c, (list, tuple)) and len(c) >= 5 for c in transcript):
+        print("Hata: Transcript verisi yanlış formatta!")
+        return 0.0, 0, 0, 0, ["Transcript verisi yanlış formatta, PDF yapısını kontrol edin."]
+
+    # ✅ Güvenli kredi hesaplama
+    try:
+        toplam_ects = sum([float(c[2]) for c in transcript if isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        ingilizce_ects = sum([float(c[2]) for c in transcript if c[4] == "İng" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        mesleki_seçmeli_ects = sum([float(c[2]) for c in transcript if c[3] == "MS" and isinstance(c[2], (int, float, str)) and str(c[2]).replace(".", "").isdigit()])
+        seçmeli_sayısı = len([c for c in transcript if c[3] == "S"])
+    except Exception as e:
+        print(f"Hata: Kredi hesaplama sırasında hata oluştu - {e}")
+        return 0.0, 0, 0, 0, ["Kredi hesaplama sırasında hata oluştu, PDF formatını kontrol edin."]
+
     eksikler = []
     if toplam_ects < 240:
         eksikler.append(f"Eksik AKTS: {240 - toplam_ects}")
@@ -94,7 +111,7 @@ def analyze_graduation_status(transcript, mezuniyet_df, katalog_df):
         eksikler.append(f"Eksik Mesleki Seçmeli AKTS: {69.5 - mesleki_seçmeli_ects}")
     if seçmeli_sayısı == 0:
         eksikler.append("En az 1 seçmeli ders alınmalıdır.")
-    
+
     return toplam_ects, ingilizce_ects, mesleki_seçmeli_ects, seçmeli_sayısı, eksikler
 
 def main():
