@@ -9,13 +9,13 @@ def load_excel_data():
     mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
     katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
     
-    if not os.path.exists(mezuniyet_path) or not os.path.exists(katalog_path):
+    try:
+        mezuniyet_df = pd.read_excel(mezuniyet_path, engine="openpyxl")
+        katalog_df = pd.read_excel(katalog_path, engine="openpyxl")
+        return mezuniyet_df, katalog_df
+    except FileNotFoundError:
         st.error("Gerekli dosyalar eksik! Lütfen HIR-MEZUNIYET.xlsx ve HIR-KATALOG.xlsx dosyalarını yükleyin.")
         return None, None
-    
-    mezuniyet_df = pd.read_excel(mezuniyet_path, engine="openpyxl")
-    katalog_df = pd.read_excel(katalog_path, engine="openpyxl")
-    return mezuniyet_df, katalog_df
 
 def extract_table_from_pdf(uploaded_file):
     """PDF'den ders tablolarını çıkarır ve uygun formatta işler."""
