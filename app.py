@@ -38,17 +38,18 @@ def extract_table_from_pdf(uploaded_file):
                         if len(row) < 5:
                             continue  # Boş veya eksik satırları geç
 
-                        ders_kodu = row[0].strip()
-                        ders_adi = row[1].strip()
+                        # Boş hücreleri kontrol et ve yerine "" koy
+                        ders_kodu = row[0].strip() if row[0] else "Bilinmiyor"
+                        ders_adi = row[1].strip() if row[1] else "Bilinmiyor"
                         try:
-                            kredi = float(row[2].replace(',', '.'))
+                            kredi = float(row[2].replace(',', '.')) if row[2] else 0.0
                         except ValueError:
                             kredi = 0.0
-                        notu = row[3].strip()
-                        statü = row[4].strip()
+                        notu = row[3].strip() if row[3] else "Bilinmiyor"
+                        statü = row[4].strip() if row[4] else "Bilinmiyor"
                         dil = "İng" if "(İng)" in ders_adi else "Tür"
-                        yerine_1 = row[5] if len(row) > 5 else ""
-                        yerine_2 = row[6] if len(row) > 6 else ""
+                        yerine_1 = row[5] if len(row) > 5 and row[5] else ""
+                        yerine_2 = row[6] if len(row) > 6 and row[6] else ""
 
                         transcript_data.append((ders_kodu, ders_adi, kredi, notu, statü, dil, yerine_1, yerine_2))
 
