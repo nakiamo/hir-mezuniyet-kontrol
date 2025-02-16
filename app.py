@@ -1,44 +1,46 @@
-import os
-import streamlit as st
-
-def check_files():
-    """Streamlit çalışma ortamında dosyaların olup olmadığını kontrol eder"""
-    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
-    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
-    
-    st.write("📂 **Streamlit Çalışma Ortamındaki Dosyalar:**")
-    try:
-        files_in_dir = os.listdir("/mnt/data/")
-        for file in files_in_dir:
-            st.write(f"📄 {file}")
-    except FileNotFoundError:
-        st.write("🚨 `/mnt/data/` klasörü bulunamadı!")
-
-    st.write("🔍 **Dosya Kontrolü:**")
-    st.write(f"📂 Mezuniyet Dosyası Var mı? → {os.path.exists(mezuniyet_path)}")
-    st.write(f"📂 Katalog Dosyası Var mı? → {os.path.exists(katalog_path)}")
-
-check_files()
-
-
 import pandas as pd
 import pdfplumber
 import streamlit as st
 import os
 import re
+import tempfile
+import urllib.request
 
-def load_excel_data():
-    """Mezuniyet ve katalog dosyalarını yükler"""
-    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
-    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
-    
+def get_temp_path(filename):
+    """Streamlit'in geçici klasörüne dosya kaydetme"""
+    return os.path.join(tempfile.gettempdir(), filename)
+
+def check_files():
+    """Streamlit çalışma ortamında dosyaların olup olmadığını kontrol eder"""
+    mezuniyet_path = get_temp_path("HIR-MEZUNIYET.xlsx")
+    katalog_path = get_temp_path("HIR-KATALOG.xlsx")
+
+    st.write("📂 **Streamlit Çalışma Ortamındaki Dosyalar:**")
     try:
-        mezuniyet_df = pd.read_excel(mezuniyet_path, engine="openpyxl")
-        katalog_df = pd.read_excel(katalog_path, engine="openpyxl")
-        return mezuniyet_df, katalog_df
+        files_in_dir = os.listdir(tempfile.gettempdir())
+        for file in files_in_dir:
+            st.write(f"📄 {file}")
     except FileNotFoundError:
-        st.error("Gerekli dosyalar eksik! Lütfen HIR-MEZUNIYET.xlsx ve HIR-KATALOG.xlsx dosyalarını yükleyin.")
-        return None, None
+        st.write("🚨 Geçici dosya klasörü bulunamadı!")
+
+    st.write("🔍 **Dosya Kontrolü:**")
+    st.write(f"📂 Mezuniyet Dosyası Var mı? → {os.path.exists(mezuniyet_path)}")
+    st.write(f"📂 Katalog Dosyası Var mı? → {os.path.exists(katalog_path)}")
+
+def download_files():
+    """GitHub'dan eksik dosyaları indir"""
+    github_base_url = "https://raw.githubusercontent.com/nakiamo/hir-mezuniyet-kontrol/main/"
+    
+    files_to_download = ["HIR-MEZUNIYET.xlsx", "HIR-KATALOG.xlsx"]
+    
+    for file in files_to_download:
+        file_path = get_temp_path(file)
+        if not os.path.exists(file_path):
+            try:
+                urllib.request.urlretrieve(github_base_url + file, file_path)
+                st.success(f"✅ {file} GitHub'dan indirildi!")
+            except Exception as e:
+                st.error(f"❌ {file} indirilemedi: {e}")
 
 def extract_table_from_pdf(uploaded_file):
     """PDF'den ders tablolarını çıkarır ve uygun formatta işler."""
@@ -65,16 +67,13 @@ def extract_table_from_pdf(uploaded_file):
         st.error(f"PDF okuma sırasında hata oluştu: {e}")
     return transcript_data
 
-def analyze_graduation_status(transcript, mezuniyet_df):
+def analyze_graduation_status(transcript):
     """Mezuniyet kriterlerini kontrol eder ve eksik dersleri hesaplar."""
     if not transcript:
         return 0.0, 0, 0, 0, [], ["Transcript verisi okunamadı, PDF yapısını kontrol edin."], {}
     
     basarili_dersler = [c for c in transcript if c[3] not in ["FF", "DZ"]]
     toplam_ects = sum(c[2] for c in basarili_dersler)
-    
-    zorunlu_ders_kodlari = mezuniyet_df['Ders Kodu'].tolist()
-    zorunlu_ects = sum(c[2] for c in basarili_dersler if c[0] in zorunlu_ders_kodlari)
     ingilizce_ects = sum(c[2] for c in basarili_dersler if c[5] == "İng")
     secmeli_ects = sum(c[2] for c in basarili_dersler if c[4] == "S")
     mesleki_secmeli_ects = sum(c[2] for c in basarili_dersler if c[4] not in ["Z", "S"])
@@ -91,20 +90,20 @@ def analyze_graduation_status(transcript, mezuniyet_df):
     if secmeli_ects < 7:
         eksikler.append(f"Eksik Seçmeli AKTS: {7 - secmeli_ects}")
     
-    return zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler
+    return toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler
 
 def main():
     st.title("HIR Mezuniyet Kontrol Sistemi")
     uploaded_file = st.file_uploader("Karteks PDF yükleyin", type=["pdf"])
     
-    mezuniyet_df, katalog_df = load_excel_data()
+    check_files()
+    download_files()
     
-    if uploaded_file and mezuniyet_df is not None:
+    if uploaded_file is not None:
         transcript = extract_table_from_pdf(uploaded_file)
-        zorunlu_ects, toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript, mezuniyet_df)
+        toplam_ects, ingilizce_ects, mesleki_secmeli_ects, secmeli_ects, başarısız_dersler, eksikler = analyze_graduation_status(transcript)
         
         st.write("### 📊 Mezuniyet Durumu")
-        st.write(f"**Toplam Zorunlu Ders AKTS:** {zorunlu_ects}")
         st.write(f"**Toplam AKTS:** {toplam_ects}")
         st.write(f"**İngilizce AKTS:** {ingilizce_ects}")
         st.write(f"**Mesleki Seçmeli AKTS:** {mesleki_secmeli_ects}")
@@ -124,16 +123,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-import os
-import streamlit as st
-
-def check_files():
-    mezuniyet_path = "/mnt/data/HIR-MEZUNIYET.xlsx"
-    katalog_path = "/mnt/data/HIR-KATALOG.xlsx"
-
-    st.write("🔍 Dosya Kontrolü:")
-    st.write(f"📂 Mezuniyet Dosyası Var mı? -> {os.path.exists(mezuniyet_path)}")
-    st.write(f"📂 Katalog Dosyası Var mı? -> {os.path.exists(katalog_path)}")
-
-check_files()  # Bu satırı ekleyerek fonksiyonu çalıştır
